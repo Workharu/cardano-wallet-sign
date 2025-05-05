@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cardano Wallet Message Signer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6fb;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            background: #fff;
+            padding: 2rem 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            max-width: 400px;
+            width: 100%;
+        }
+        h2 {
+            margin-bottom: 1.5rem;
+            color: #2d3748;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #4a5568;
+        }
+        select, textarea, button {
+            width: 100%;
+            margin-bottom: 1rem;
+            padding: 0.6rem;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            font-size: 1rem;
+        }
+        button {
+            background: #3182ce;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .result {
+            background: #f1f5f9;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+            word-break: break-all;
+            font-size: 0.97rem;
+        }
+        .error {
+            color: #e53e3e;
+            margin-top: 1rem;
+        }
+        .wallet-select-wrapper {
+            position: relative;
+            width: 100%;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+        .wallet-select-wrapper select {
+            padding-left: 2.5em;
+            height: 2.6em;
+            line-height: 2.6em;
+        }
+        .wallet-icon {
+            position: absolute;
+            left: 0.6em;
+            /* Center vertically relative to select box */
+            top: 35%;
+            transform: translateY(-50%);
+            width: 1.6em;
+            height: 1.6em;
+            pointer-events: none;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Sign a Message (Cardano)</h2>
+        <label for="wallet">Select Wallet</label>
+        <div class="wallet-select-wrapper">
+            <img id="wallet-icon" class="wallet-icon" src="" alt="" style="display:none;" />
+            <select id="wallet">
+                <!-- Wallet options will be populated by JS -->
+            </select>
+        </div>
+        <label for="message">Message</label>
+        <textarea id="message" rows="4" placeholder="Enter the message to sign..."></textarea>
+        <button id="signBtn">Sign Message</button>
+        <div id="result" class="result" style="display:none;"></div>
+        <div id="error" class="error"></div>
+    </div>
+    <script>
+        // Supported wallets and their display info
+        const SUPPORTED_WALLETS = [
+            {
+                key: 'eternl',
+                name: 'Eternl',
+                icon: 'https://eternl.io/favicon.ico'
+            },
+            {
+                key: 'lace',
+                name: 'Lace',
+                icon: 'https://lace.io/favicon.ico'
+            }
+        ];
+
+        // Dynamically populate wallet selector based on detected wallets
+        function detectWallets() {
+            if (!window.cardano) return [];
+            return SUPPORTED_WALLETS.filter(w => window.cardano[w.key]);
+        }
+
+        function populateWalletSelector() {
+            const selector = document.getElementById('wallet');
+            selector.innerHTML = '';
+            const detected = detectWallets();
+            if (detected.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No supported wallet found';
+                selector.appendChild(opt);
+                selector.disabled = true;
+            } else {
+                detected.forEach(w => {
+                    const opt = document.createElement('option');
+                    opt.value = w.key;
+                    opt.textContent = w.name;
+                    opt.setAttribute('data-icon', w.icon);
+                    selector.appendChild(opt);
+                });
+                selector.disabled = false;
+                if (detected.length === 1) {
+                    selector.value = detected[0].key;
+                }
+            }
+        }
+
+        function updateWalletIcon() {
+            const selector = document.getElementById('wallet');
+            const iconImg = document.getElementById('wallet-icon');
+            const selected = selector.options[selector.selectedIndex];
+            const icon = selected ? selected.getAttribute('data-icon') : '';
+            if (icon) {
+                iconImg.src = icon;
+                iconImg.style.display = '';
+                iconImg.alt = selected.textContent + ' icon';
+            } else {
+                iconImg.src = '';
+                iconImg.style.display = 'none';
+                iconImg.alt = '';
+            }
+        }
+
+        function addWalletIconsToSelector() {
+            const selector = document.getElementById('wallet');
+            selector.addEventListener('change', updateWalletIcon);
+            updateWalletIcon();
+        }
+
+        // Wallet detection with retries for late-injecting extensions
+        function startWalletDetection() {
+            const selector = document.getElementById('wallet');
+            let attempts = 0;
+            const maxAttempts = 8; // ~2.4s if interval is 300ms
+            const interval = 300;
+            let lastDetected = [];
+
+            function tryDetect() {
+                const detected = detectWallets();
+                // Only update if changed or first run
+                if (JSON.stringify(detected.map(w=>w.key)) !== JSON.stringify(lastDetected.map(w=>w.key))) {
+                    populateWalletSelector();
+                    addWalletIconsToSelector();
+                    lastDetected = detected;
+                }
+                attempts++;
+                if (detected.length === 0 && attempts < maxAttempts) {
+                    setTimeout(tryDetect, interval);
+                }
+            }
+            tryDetect();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            startWalletDetection();
+        });
+
+        const WALLET_KEYS = {
+            eternl: 'eternl',
+            lace: 'lace'
+        };
+
+        async function signMessageWithWallet(walletKey, message) {
+            if (!window.cardano || !window.cardano[walletKey]) {
+                throw new Error(`${walletKey.charAt(0).toUpperCase() + walletKey.slice(1)} wallet not found. Please install or enable the extension.`);
+            }
+            const api = await window.cardano[walletKey].enable();
+            // Get the first used address as required by CIP-30
+            const usedAddresses = await api.getUsedAddresses();
+            if (!usedAddresses || usedAddresses.length === 0) {
+                throw new Error('No used addresses found in the wallet. Please ensure your wallet is set up.');
+            }
+            // The address must be hex encoded
+            const address = usedAddresses[0];
+            // Convert message to hex string as required by CIP-30
+            const hexMessage = Array.from(new TextEncoder().encode(message)).map(b => b.toString(16).padStart(2, '0')).join('');
+            // Sign the message
+            const signed = await api.signData(address, hexMessage);
+            return signed;
+        }
+
+        document.getElementById('signBtn').onclick = async function() {
+            const wallet = document.getElementById('wallet').value;
+            const message = document.getElementById('message').value;
+            const resultDiv = document.getElementById('result');
+            const errorDiv = document.getElementById('error');
+            resultDiv.style.display = 'none';
+            errorDiv.textContent = '';
+
+            if (!message.trim()) {
+                errorDiv.textContent = 'Please enter a message to sign.';
+                return;
+            }
+
+            try {
+                resultDiv.textContent = 'Requesting signature...';
+                resultDiv.style.display = 'block';
+                const signed = await signMessageWithWallet(wallet, message);
+                resultDiv.innerHTML = `<b>Key:</b> ${signed.key}<br><b>Signature:</b> ${signed.signature}`;
+            } catch (err) {
+                resultDiv.style.display = 'none';
+                errorDiv.textContent = err.message || err;
+            }
+        };
+    </script>
+</body>
+</html>
