@@ -100,6 +100,11 @@
                 <!-- Wallet options will be populated by JS -->
             </select>
         </div>
+        <label for="keyType">Key Type</label>
+        <select id="keyType">
+            <option value="stake" selected>Stake Key</option>
+            <option value="payment">Payment Key</option>
+        </select>
         <label for="message">Message</label>
         <textarea id="message" rows="4" placeholder="Enter the message to sign..."></textarea>
         <button id="signBtn">Sign Message</button>
@@ -207,18 +212,33 @@
             lace: 'lace'
         };
 
-        async function signMessageWithWallet(walletKey, message) {
+        // Helper to get address by key type
+        async function getAddressByKeyType(api, keyType) {
+            if (keyType === 'stake') {
+                // Stake key: get reward addresses
+                const rewardAddresses = await api.getRewardAddresses();
+                if (rewardAddresses && rewardAddresses.length > 0) {
+                    return rewardAddresses[0];
+                } else {
+                    throw new Error('No stake (reward) addresses found in the wallet.');
+                }
+            } else {
+                // Payment key: get used addresses
+                const usedAddresses = await api.getUsedAddresses();
+                if (usedAddresses && usedAddresses.length > 0) {
+                    return usedAddresses[0];
+                } else {
+                    throw new Error('No payment (used) addresses found in the wallet.');
+                }
+            }
+        }
+
+        async function signMessageWithWallet(walletKey, message, keyType) {
             if (!window.cardano || !window.cardano[walletKey]) {
                 throw new Error(`${walletKey.charAt(0).toUpperCase() + walletKey.slice(1)} wallet not found. Please install or enable the extension.`);
             }
             const api = await window.cardano[walletKey].enable();
-            // Get the first used address as required by CIP-30
-            const usedAddresses = await api.getUsedAddresses();
-            if (!usedAddresses || usedAddresses.length === 0) {
-                throw new Error('No used addresses found in the wallet. Please ensure your wallet is set up.');
-            }
-            // The address must be hex encoded
-            const address = usedAddresses[0];
+            const address = await getAddressByKeyType(api, keyType);
             // Convert message to hex string as required by CIP-30
             const hexMessage = Array.from(new TextEncoder().encode(message)).map(b => b.toString(16).padStart(2, '0')).join('');
             // Sign the message
@@ -228,6 +248,7 @@
 
         document.getElementById('signBtn').onclick = async function() {
             const wallet = document.getElementById('wallet').value;
+            const keyType = document.getElementById('keyType').value;
             const message = document.getElementById('message').value;
             const resultDiv = document.getElementById('result');
             const errorDiv = document.getElementById('error');
@@ -242,7 +263,7 @@
             try {
                 resultDiv.textContent = 'Requesting signature...';
                 resultDiv.style.display = 'block';
-                const signed = await signMessageWithWallet(wallet, message);
+                const signed = await signMessageWithWallet(wallet, message, keyType);
                 resultDiv.innerHTML = `<b>Key:</b> ${signed.key}<br><b>Signature:</b> ${signed.signature}`;
             } catch (err) {
                 resultDiv.style.display = 'none';
