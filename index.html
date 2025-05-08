@@ -100,6 +100,9 @@
                 <!-- Wallet options will be populated by JS -->
             </select>
         </div>
+        <div id="no-wallet-message" style="display:none; color:#e53e3e; margin-bottom:1rem; font-size:0.98em;">
+            No supported Cardano wallet detected. Please install Eternl, Lace, or Typhon browser extension and refresh the page.
+        </div>
         <label for="keyType">Key Type</label>
         <select id="keyType">
             <option value="stake" selected>Stake Key</option>
@@ -123,6 +126,11 @@
                 key: 'lace',
                 name: 'Lace',
                 icon: 'https://lace.io/favicon.ico'
+            },
+            {
+                key: 'typhoncip30',
+                name: 'Typhon',
+                icon: 'https://typhonwallet.io/favicon.ico'
             }
         ];
 
@@ -134,6 +142,7 @@
 
         function populateWalletSelector() {
             const selector = document.getElementById('wallet');
+            const noWalletMsg = document.getElementById('no-wallet-message');
             selector.innerHTML = '';
             const detected = detectWallets();
             if (detected.length === 0) {
@@ -142,6 +151,7 @@
                 opt.textContent = 'No supported wallet found';
                 selector.appendChild(opt);
                 selector.disabled = true;
+                if (noWalletMsg) noWalletMsg.style.display = '';
             } else {
                 detected.forEach(w => {
                     const opt = document.createElement('option');
@@ -154,6 +164,7 @@
                 if (detected.length === 1) {
                     selector.value = detected[0].key;
                 }
+                if (noWalletMsg) noWalletMsg.style.display = 'none';
             }
         }
 
@@ -209,7 +220,8 @@
 
         const WALLET_KEYS = {
             eternl: 'eternl',
-            lace: 'lace'
+            lace: 'lace',
+            typhoncip30: 'typhoncip30'
         };
 
         // Helper to get address by key type
