@@ -145,27 +145,18 @@
             const noWalletMsg = document.getElementById('no-wallet-message');
             selector.innerHTML = '';
             const detected = detectWallets();
-            if (detected.length === 0) {
+            detected.forEach(w => {
                 const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = 'No supported wallet found';
+                opt.value = w.key;
+                opt.textContent = w.name;
+                opt.setAttribute('data-icon', w.icon);
                 selector.appendChild(opt);
-                selector.disabled = true;
-                if (noWalletMsg) noWalletMsg.style.display = '';
-            } else {
-                detected.forEach(w => {
-                    const opt = document.createElement('option');
-                    opt.value = w.key;
-                    opt.textContent = w.name;
-                    opt.setAttribute('data-icon', w.icon);
-                    selector.appendChild(opt);
-                });
-                selector.disabled = false;
-                if (detected.length === 1) {
-                    selector.value = detected[0].key;
-                }
-                if (noWalletMsg) noWalletMsg.style.display = 'none';
+            });
+            selector.disabled = false;
+            if (detected.length === 1) {
+                selector.value = detected[0].key;
             }
+            if (noWalletMsg) noWalletMsg.style.display = 'none';
         }
 
         function updateWalletIcon() {
@@ -194,12 +185,13 @@
         function startWalletDetection() {
             const selector = document.getElementById('wallet');
             let attempts = 0;
-            const maxAttempts = 8; // ~2.4s if interval is 300ms
-            const interval = 300;
+            const maxAttempts = 6; // ~2.4s if interval is 300ms
+            const interval = 500;
             let lastDetected = [];
 
             function tryDetect() {
                 const detected = detectWallets();
+                console.log('Detected wallets:', detected);
                 // Only update if changed or first run
                 if (JSON.stringify(detected.map(w=>w.key)) !== JSON.stringify(lastDetected.map(w=>w.key))) {
                     populateWalletSelector();
@@ -209,6 +201,20 @@
                 attempts++;
                 if (detected.length === 0 && attempts < maxAttempts) {
                     setTimeout(tryDetect, interval);
+                }else{
+                    // If we have detected wallets, stop trying
+                    if (detected.length > 0) {
+                        clearTimeout(tryDetect);
+                    }else{
+                        // If no wallets detected after max attempts, show message
+                        const opt = document.createElement('option');
+                        opt.value = '';
+                        opt.textContent = '🚫 No supported wallet found';
+                        selector.appendChild(opt);
+                        selector.disabled = true;
+                        if (noWalletMsg) noWalletMsg.style.display = '';
+                    }
+
                 }
             }
             tryDetect();
